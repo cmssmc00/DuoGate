@@ -1,0 +1,13 @@
+# Include all Python source dirs
+recursive-include code *.py
+recursive-include configs *.py
+recursive-include prompts *.py
+
+# Include non-Python files in prompts/configs
+recursive-include prompts *.yaml *.yml *.json *.jsonl *.txt *.md
+recursive-include prompts/* *.yaml *.txt *.json
+recursive-include configs *.jsonnet
+include playbooks/appworld_initial_playbook.txt
+
+# Include build configuration.
+include pyproject.toml
