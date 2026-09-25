@@ -49,12 +49,6 @@ class StarAgent(FromDict):
         logger_config = logger_config or {}
         logger_config["cost_tracker"] = self.cost_tracker
         self.logger = Logger(**logger_config)
-        self.initial_messages_idx = None
-        self.previous_code_idx = None
-        self.previous_error_idx = None
-        self.star_guide_idx = None
-        self.initial_code_idx = None
-        self.last_execution_error = None
         self.playbook = ''
         self.current_task_index = 0  # Global variable to track current task index
         self.trained_playbook_file_path = None
@@ -83,10 +77,6 @@ class StarAgent(FromDict):
         raise NotImplementedError
 
     def solve_task_with_gt(self, task_id: str, experiment_name: str | None = None):
-        self.star_guide_idx = None
-        self.initial_code_idx = None
-        self.previous_code_idx = None
-        self.previous_error_idx = None
         self.test_report = None
         reflections = []
         task_success = False
@@ -160,10 +150,6 @@ class StarAgent(FromDict):
         self.logger.complete_task()
 
     def solve_task_wo_gt(self, task_id: str, experiment_name: str | None = None):
-        self.star_guide_idx = None
-        self.initial_code_idx = None
-        self.previous_code_idx = None
-        self.previous_error_idx = None
         self.test_report = None
         gt_code = None
         reflections = []

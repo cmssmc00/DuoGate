@@ -1,11 +1,4 @@
-"""
-==============================================================================
-playbook.py
-==============================================================================
-
-This file contains functions for parsing and manipulating the playbook.
-
-"""
+"""Parse, retrieve, filter, and update DuoGate playbook entries."""
 import json
 import re
 from .utils import get_section_slug
@@ -362,75 +355,6 @@ def select_playbook_for_task(
     return selected, metadata
 
 
-def sanitize_curator_update(
-    curator_text: str,
-    existing_playbook: str,
-    max_new_bullets: int = 2,
-    max_bullet_chars: int = 800,
-) -> tuple[str, dict]:
-    max_new_bullets = max(0, int(max_new_bullets or 2))
-    max_bullet_chars = max(120, int(max_bullet_chars or 800))
-    text = curator_text or ""
-    existing_norms = {
-        _normalize_for_dedup(entry.get("content"))
-        for entry in _split_playbook_entries(existing_playbook or "")
-        if entry.get("type") == "bullet"
-    }
-    candidates = []
-    for line in text.splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.startswith("```") or stripped in ("{", "}", "[", "]"):
-            continue
-        stripped = re.sub(r"^[-*]\s+", "", stripped)
-        parsed = parse_playbook_line(stripped)
-        if parsed:
-            stripped = parsed.get("content", "")
-        if len(stripped) < 20:
-            continue
-        candidates.append(stripped)
-
-    kept = []
-    skipped_duplicate = 0
-    skipped_too_long = 0
-    skipped_low_value = 0
-    seen = set()
-    for candidate in candidates:
-        if "```" in candidate or candidate.lstrip().startswith(("{", "[", "apis.")):
-            skipped_low_value += 1
-            continue
-        if len(candidate) > max_bullet_chars:
-            candidate = candidate[:max_bullet_chars].rsplit(" ", 1)[0].rstrip(" ,;:")
-            skipped_too_long += 1
-        norm = _normalize_for_dedup(candidate)
-        if not norm:
-            skipped_low_value += 1
-            continue
-        prefix = norm[:180]
-        if norm in existing_norms or prefix in seen or any(prefix and prefix in ex for ex in existing_norms):
-            skipped_duplicate += 1
-            continue
-        value_score = sum(1 for k in CRITICAL_KEYWORDS + OPERATION_KEYWORDS if k in candidate.lower())
-        if value_score == 0:
-            skipped_low_value += 1
-            continue
-        kept.append(candidate)
-        seen.add(prefix)
-        if len(kept) >= max_new_bullets:
-            break
-
-    sanitized = "\n".join(f"- {item}" for item in kept)
-    metadata = {
-        "original_curator_chars": len(text),
-        "sanitized_curator_chars": len(sanitized),
-        "original_bullet_count": len(candidates),
-        "kept_bullet_count": len(kept),
-        "skipped_duplicate_count": skipped_duplicate,
-        "skipped_too_long_count": skipped_too_long,
-        "skipped_low_value_count": skipped_low_value,
-    }
-    return sanitized, metadata
-
-
 def sanitize_curator_operations(
     operations,
     existing_playbook,
@@ -502,60 +426,14 @@ def sanitize_curator_operations(
     }
     return kept, metadata
 
-def update_bullet_counts(playbook_text, bullet_tags):
-    """Update helpful/harmful counts based on tags (Counter layer)"""
-    lines = playbook_text.strip().split('\n')
-    updated_lines = []
-    
-    # Create tag lookup - handle both old and new formats
-    tag_map = {}
-    if isinstance(bullet_tags, list) and len(bullet_tags) > 0:
-        for tag in bullet_tags:
-            if isinstance(tag, dict):
-                # Handle both 'id' and 'bullet' keys for backwards compatibility
-                bullet_id = tag.get('id') or tag.get('bullet', '')
-                tag_value = tag.get('tag', 'neutral')
-                if bullet_id:
-                    tag_map[bullet_id] = tag_value
-    
-    if not tag_map:
-        print("Warning: No valid bullet tags found to update counts")
-        return playbook_text
-    
-    for line in lines:
-        if line.strip().startswith('#') or not line.strip():
-            # Preserve section headers and empty lines
-            updated_lines.append(line)
-            continue
-            
-        parsed = parse_playbook_line(line)
-        # Counts have been removed from the playbook; keep lines unchanged
-        if parsed and parsed['id'] in tag_map:
-            updated_lines.append(format_playbook_line(parsed['id'], 0, 0, parsed['content']))
-        else:
-            updated_lines.append(line)
-    
-    return '\n'.join(updated_lines)
-
-
 def apply_curator_operations(playbook_text, operations, next_id):
-    """
-    Apply curator operations to playbook
-    
-    TODO: Future Operations (not implemented yet)
-    - UPDATE: Rewrite existing bullets to be more accurate or comprehensive
-    - MERGE: Combine related bullets into stronger ones  
-    - CREATE_META: Add high-level strategy sections
-    - DELETE: Remove outdated or incorrect bullets (if needed)
-    """
+    """Apply supported ADD operations to the playbook."""
     lines = playbook_text.strip().split('\n')
     
     # Build section map
     sections = {}
     current_section = "general"
     section_line_map = {}  # Track which line each section header is on
-    # import pdb
-    # pdb.set_trace()
     for i, line in enumerate(lines):
         if line.strip().startswith('##'):
             # Extract section name and normalize it
@@ -574,19 +452,6 @@ def apply_curator_operations(playbook_text, operations, next_id):
     
     for op in operations:
         op_type = op['type']
-        
-        # TODO: Future operation types (not implemented yet)
-        # elif op_type == 'UPDATE':
-        #     bullet_id = op.get('bullet_id', '')
-                    #     new_content = op.get('content', '')
-            #     bullets_to_update[bullet_id] = new_content
-        # elif op_type == 'MERGE':
-        #     source_ids = op.get('source_ids', [])
-        #     bullets_to_delete.update(source_ids)
-        #     # Add merged bullet logic here
-        # elif op_type == 'CREATE_META':
-        #     section_name = op.get('section_name', 'META_STRATEGIES')
-        #     # Add meta section creation logic here
         
         if op_type == 'ADD':
             # Normalize section name from operation
@@ -672,32 +537,6 @@ def apply_curator_operations(playbook_text, operations, next_id):
     
     return '\n'.join(final_lines), next_id
 
-def get_playbook_stats(playbook_text):
-    """Generate statistics about the playbook"""
-    lines = playbook_text.strip().split('\n')
-    stats = {
-        'total_bullets': 0,
-        'by_section': {}
-    }
-    
-    current_section = 'general'
-    
-    for line in lines:
-        if line.strip().startswith('##'):
-            current_section = line.strip()[2:].strip()
-            continue
-            
-        parsed = parse_playbook_line(line)
-        if parsed:
-            stats['total_bullets'] += 1
-            
-            if current_section not in stats['by_section']:
-                stats['by_section'][current_section] = {'count': 0}
-            
-            stats['by_section'][current_section]['count'] += 1
-    
-    return stats
-
 def extract_json_from_text(text, json_key=None):
     """Extract JSON object from text, handling various formats"""
     try:
@@ -780,41 +619,3 @@ def extract_json_from_text(text, json_key=None):
                 print(f"Raw content:\n{text}")
         
     return None
-
-def extract_playbook_bullets(playbook_text, bullet_ids):
-    """
-    Extract specific bullet points from playbook based on bullet_ids.
-    
-    Args:
-        playbook_text (str): The full playbook text
-        bullet_ids (list): List of bullet IDs to extract
-    
-    Returns:
-        str: Formatted playbook content containing only the specified bullets
-    """
-    if not bullet_ids:
-        return "(No bullets used by generator)"
-    
-    lines = playbook_text.strip().split('\n')
-    found_bullets = []
-    
-    for line in lines:
-        if line.strip():  # Skip empty lines
-            parsed = parse_playbook_line(line)
-            if parsed and parsed['id'] in bullet_ids:
-                found_bullets.append({
-                    'id': parsed['id'],
-                    'content': parsed['content'],
-                    'helpful': parsed['helpful'],
-                    'harmful': parsed['harmful']
-                })
-    
-    if not found_bullets:
-        return "(Generator referenced bullet IDs but none were found in playbook)"
-    
-    # Format the bullets for reflector input
-    formatted_bullets = []
-    for bullet in found_bullets:
-        formatted_bullets.append(f"[{bullet['id']}] {bullet['content']}")
-    
-    return '\n'.join(formatted_bullets)

@@ -1,8 +1,6 @@
 from typing import Any
 
 from appworld.task import Task, load_task_ids
-from appworld_experiments.code.ace.base_agent import BaseAgent
-from appworld_experiments.code.ace.evaluation_agent import Agent
 from appworld_experiments.code.ace.adaptation_agent import StarAgent
 
 
@@ -16,7 +14,7 @@ def run_experiment(
     run_type = runner_config.pop("run_type")
     agent_config = runner_config.pop("agent")
     dataset_name = runner_config.pop("dataset", None)
-    difficulty = runner_config.pop("difficulty", None)   # 新增
+    difficulty = runner_config.pop("difficulty", None)
     sample_size = runner_config.pop("sample_size", None)
     custom_task_ids = runner_config.pop("task_ids", None)
     num_epochs = runner_config.pop("num_epochs", 1)
@@ -60,14 +58,8 @@ def run_experiment(
     task_ids = task_ids * num_epochs
 
     if run_type == "ace-adaptation":
-        # ACE adaptation
+        # Full DuoGate uses the online adaptation agent.
         agent = StarAgent.from_dict(agent_config)
-    elif run_type == "ace-evaluation":
-        # ACE evaluation
-        agent = Agent.from_dict(agent_config)
-    elif run_type == "non-ace-evaluation":
-        # non-ACE evaluation
-        agent = BaseAgent.from_dict(agent_config)
     else:
         raise ValueError(f"Unknown run_type: {run_type}")
 

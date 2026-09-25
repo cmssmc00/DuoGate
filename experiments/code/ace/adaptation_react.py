@@ -99,7 +99,6 @@ class SimplifiedReActStarAgent(StarAgent):
         super().__init__(**kwargs)
         self.generator_prompt_template = read_file(generator_prompt_file_path.replace("/", os.sep)).lstrip()
         self.reflector_prompt = read_file(reflector_prompt_file_path.replace("/", os.sep))
-        self.curator_prompt_file_path = curator_prompt_file_path
         self.curator_prompt = read_file(curator_prompt_file_path.replace("/", os.sep))
         self.trained_playbook_file_path = trained_playbook_file_path
         self.max_prompt_length = max_prompt_length
@@ -234,48 +233,6 @@ class SimplifiedReActStarAgent(StarAgent):
         elif last_execution_outputs:
             self.record_execution_outputs(last_execution_outputs)
 
-        
-
-
-
-
-
-        '''messages = self.trimmed_messages
-        output = self.generator_model.generate(messages=messages)
-        
-        # ========================================================
-        # 🚦 置信度物理拦截器 (Confidence Interceptor) 开始
-        # ========================================================
-        import re
-        content_text = output["content"]
-        
-        # 1. 解析大模型给出的置信度 (如果模型忘写了，默认给 10 放行)
-        confidence_match = re.search(r'Confidence:\s*(\d+)', content_text)
-        confidence_score = int(confidence_match.group(1)) if confidence_match else 10 
-        
-        # 2. 提取出它打算执行的 Python 代码
-        code, fixed_output_content = self.extract_code_and_fix_content(content_text)
-        
-        # 3. 升级版：精准匹配危险 API 的函数调用，避免误伤文档查询等字符串参数
-        # 必须满足：前面有点(调用方法) + 后面带括号(执行函数) 才会触发拦截
-        is_dangerous_action = bool(re.search(
-            r'\.(create_|update_|delete_|remove_|add_|send_|login)[a-zA-Z0-9_]*\s*\(', 
-            code
-        ))
-
-        if confidence_score <= 5 and is_dangerous_action:
-            code = (
-                f"print('System Error: Execution Blocked! Your confidence score is "
-                f"{confidence_score}/10 (<= 5). You are NOT allowed to execute state-changing "
-                f"APIs or complete_task() when uncertain. Please write code to query more "
-                f"information using show_ or search_ APIs first.')"
-            )
-        # ========================================================
-        # 🚦 拦截器结束
-        # ========================================================
-
-        self.messages.append({"role": "assistant", "content": fixed_output_content + "\n\n"})'''
-        
         messages = self.trimmed_messages
         output = self.generator_model.generate(messages=messages)
         code, fixed_output_content = self.extract_code_and_fix_content(output["content"])

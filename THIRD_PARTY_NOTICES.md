@@ -2,8 +2,8 @@
 
 ## AppWorld
 
-The `src/appworld/` environment, public tests, generation utilities, encrypted
-installation bundles, and associated packaging originate from
+The `src/appworld/` environment, public tests, encrypted installation bundles,
+and associated packaging originate from
 [AppWorld](https://github.com/stonybrooknlp/appworld).
 
 The public portion is distributed under the Apache License 2.0, reproduced in

@@ -714,29 +714,6 @@ def build_evidence_ledger(
 # Local heuristic complete_task gate
 # ---------------------------------------------------------------------------
 
-_ANSWER_REQUIRED_KEYWORDS = (
-    "question",
-    "count",
-    "what",
-    "which",
-    "how many",
-    "how much",
-    "total",
-    "list",
-    "name",
-    "names",
-    "date",
-    "amount",
-    "value",
-    "sum",
-    "average",
-    "min ",
-    "max ",
-    "who",
-    "where",
-)
-
-
 # Broad question / answer-required regex patterns.  These are ONLY
 # consulted when the instruction has no action intent at all (no verb
 # in _ACTION_PATTERNS), so they can stay relatively loose and still
@@ -1626,37 +1603,6 @@ def _strip_complete_task_when_mutation_present(
     return new_code
 
 
-_MUTATION_TASK_KEYWORDS = (
-    "send",
-    "delete",
-    "create",
-    "add",
-    "remove",
-    "update",
-    "transfer",
-    "pay",
-    "post",
-    "submit",
-    "share",
-    "invite",
-    "accept",
-    "reject",
-    "cancel",
-    "mark",
-    "archive",
-    "move",
-    "rename",
-    "assign",
-    "set",
-    "upload",
-    "buy",
-    "purchase",
-    "rate",
-    "like",
-    "follow",
-    "subscribe",
-)
-
 _COMPLETENESS_TASK_KEYWORDS = (
     "all ",
     "every ",
@@ -1901,10 +1847,7 @@ def heuristic_complete_task_gate(
     instr = (task_instruction or "").lower()
     completion_ev = evidence_ledger.get("completion_evidence", {}) or {}
 
-    # New classification: word-boundary regex, action vs question intent.
-    # The old substring `_ANSWER_REQUIRED_KEYWORDS` table falsely matched
-    # tokens like "list" inside "playlist", causing many action tasks to
-    # be mis-classified as question-answer tasks and then blocked here.
+    # Classify question and action intent with word-boundary patterns.
     needs_answer = task_requires_answer(task_instruction)
     is_action_only = task_is_action_only(task_instruction)
     answer_arg = ct.get("keyword_args", {}).get("answer", None)
@@ -1945,11 +1888,7 @@ def heuristic_complete_task_gate(
             )
 
     # 3) Task is a mutation but we haven't observed a successful mutation.
-    # Use the word-boundary action-intent classifier here instead of a
-    # raw substring scan over `_MUTATION_TASK_KEYWORDS`.  The substring
-    # scan misfired on "display" (matches "play"), "playlist" (matches
-    # "list"), "subset" (matches "set"), etc., and incorrectly forced
-    # the agent to "see a mutation before completing".
+    # Detect mutation intent with word-boundary patterns.
     needs_mutation = task_is_action_only(task_instruction)
     if needs_mutation and not completion_ev.get("has_successful_mutation"):
         hard_missing.append(
@@ -2195,17 +2134,6 @@ def _venmo_semantic_api_conflict(
     if semantics == "send_money" and kind == "request_money":
         return "semantic mismatch: task asks to send money but proposed API creates a payment request"
     return None
-
-def _venmo_has_evidence_alias(text: str, aliases: tuple[str, ...]) -> bool:
-    if not text:
-        return False
-    lowered = text.lower()
-    for alias in aliases:
-        pattern = r"(?<![A-Za-z0-9_])" + re.escape(alias.lower()) + r"(?![A-Za-z0-9_])"
-        if re.search(pattern, lowered):
-            return True
-    return False
-
 
 def _extract_venmo_evidence_flags(messages: list) -> dict:
     text = _venmo_recent_text(messages, tail=12)
@@ -3528,7 +3456,6 @@ class AppWorldConfidenceController:
 
         # Per-step trackers populated inside `control()` and read back
         # by `_log()` / fallback helpers.  They are reset on every call.
-        self._current_api_docs_root: str | None = None
         self._last_assessor_called: bool = False
         self._last_assessor_model: str | None = None
         self._last_confidence_cost: float | None = None
@@ -3570,7 +3497,6 @@ class AppWorldConfidenceController:
         task_id: str | None = None,
     ) -> dict:
         # Reset per-step trackers used by `_log` and fallback helpers.
-        self._current_api_docs_root = api_docs_root
         self._last_assessor_called = False
         self._last_assessor_model = None
         self._last_confidence_cost = None
