@@ -2659,6 +2659,7 @@ def unpack_bundle(
     base_directory: str,
     password: str,
     salt: bytes,
+    exclude_file_paths: list[str] | None = None,
 ) -> list[str]:
     import io
     import zipfile
@@ -2674,8 +2675,11 @@ def unpack_bundle(
     zip_data = decrypt_bytes(encrypted_data, password, salt)
     bytes_io = io.BytesIO(zip_data)
     with zipfile.ZipFile(bytes_io, "r") as file:
-        relative_unpacked_file_paths: list[str] = file.namelist()
-        file.extractall(base_directory)
+        excluded_paths = {os.path.normpath(path) for path in (exclude_file_paths or [])}
+        relative_unpacked_file_paths = [
+            path for path in file.namelist() if os.path.normpath(path) not in excluded_paths
+        ]
+        file.extractall(base_directory, members=relative_unpacked_file_paths)
     return relative_unpacked_file_paths
 
 

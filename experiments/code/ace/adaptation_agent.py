@@ -129,7 +129,8 @@ class StarAgent(FromDict):
                         # No next proposal will consume this final execution output.
                         if execution_inputs:
                             self.record_execution_outputs(execution_outputs)
-                        test_tracker, self.test_report = evaluate_task(task_id, experiment_name)
+                        test_tracker = evaluate_task(task_id, experiment_name)
+                        self.test_report = test_tracker.report(print_it=False, colorize=False)
                         if hasattr(self, "maybe_learning_update"):
                             self.maybe_learning_update(test_tracker)
                         else:
@@ -190,7 +191,8 @@ class StarAgent(FromDict):
                     # No next proposal will consume this final execution output.
                     if execution_inputs:
                         self.record_execution_outputs(execution_outputs)
-                    test_tracker, self.test_report = evaluate_task(task_id, experiment_name)
+                    test_tracker = evaluate_task(task_id, experiment_name)
+                    self.test_report = test_tracker.report(print_it=False, colorize=False)
                     if hasattr(self, "maybe_learning_update"):
                         self.maybe_learning_update(test_tracker)
                     else:

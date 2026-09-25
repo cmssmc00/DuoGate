@@ -124,13 +124,28 @@ class TestSQLModel(TestApp):
         assert self.models.User.by_id(999) is None
 
     def test_by_ids(self) -> None:
-        users = create_objects_and_dependents(self.models.User, num_objects=10)
+        users = [
+            create_object_and_dependents(
+                self.models.User, first_name=f"User{1 if index == 4 else index}"
+            )
+            for index in range(10)
+        ]
         user_ids = [user.id for user in users]
         assert self.models.User.by_ids(user_ids[:5]) == users[:5]
         assert self.models.User.by_ids(user_ids[5:]) == users[5:]
         assert self.models.User.by_ids(user_ids) == users
         assert self.models.User.by_ids(user_ids, first_name="Invalid") == []
-        assert self.models.User.by_ids(user_ids, first_name=users[1].first_name) == [users[1]]
+        assert self.models.User.by_ids(user_ids, first_name=users[2].first_name) == [users[2]]
+
+        # First names are not unique: return every match in the requested ID order.
+        assert self.models.User.by_ids(user_ids, first_name=users[1].first_name) == [
+            users[1],
+            users[4],
+        ]
+        assert self.models.User.by_ids(user_ids[::-1], first_name=users[1].first_name) == [
+            users[4],
+            users[1],
+        ]
 
     def test_delete(self) -> None:
         # test deletion works fine

@@ -5,6 +5,7 @@ from textwrap import dedent
 
 import psutil
 import pytest
+import requests
 
 from appworld.apps.model_lib import CachedDBHandler
 from appworld.common.utils import (
@@ -15,7 +16,7 @@ from appworld.common.utils import (
     read_jsonl,
 )
 from appworld.environment import AppWorld
-from appworld.evaluator import TestTracker, evaluate_tasks
+from appworld.evaluator import TestTracker, evaluate_task, evaluate_tasks
 from appworld.task import Task, load_task_ids
 
 
@@ -487,6 +488,22 @@ class TestAppWorld:
         AppWorld.close_all()
         evaluate_tasks([self.task_id])
 
+    @pytest.mark.parametrize("save_report", [False, True])
+    def test_evaluate_task_returns_tracker(self, save_report: bool) -> None:
+        experiment_name = f"test_evaluate_task_save_report_{save_report}"
+        world = AppWorld(task_id=self.task_id, experiment_name=experiment_name)
+        result = evaluate_task(
+            self.task_id, experiment_name=experiment_name, save_report=save_report
+        )
+        assert isinstance(result, TestTracker)
+        assert result.total_count == result.num_tests
+        report_path = os.path.join(world.output_directory, "evaluation", "report.md")
+        if save_report:
+            # DuoGate obtains the same report from the returned tracker.
+            assert result.report(print_it=False, colorize=False) == read_file(report_path)
+        else:
+            assert not os.path.exists(report_path)
+
     def test_world_loads_do_not_leak_memory(self) -> None:
         # Starting a new AppWorld should automatically close the previous one.
         AppWorld(task_id=self.task_id)
@@ -581,7 +598,7 @@ class TestAppWorld:
         world.close()
 
     @pytest.mark.run_last
-    def test_world_loads_in_remote_mode(self):
+    def test_world_loads_in_remote_mode(self, monkeypatch: pytest.MonkeyPatch):
         from appworld.apps.model_lib import (
             get_cached_db_engine,
             get_direct_cached_sqlite3_connection,
@@ -606,6 +623,10 @@ class TestAppWorld:
         test_tracker = hollow_world.evaluate()
         assert isinstance(test_tracker, TestTracker)
         assert not test_tracker.to_dict()["success"]
+        output = hollow_world._remote_environment_call(
+            "evaluate", experiment_name=hollow_world.experiment_name
+        )
+        assert output == test_tracker.to_dict(stats_only=False)
         hollow_world.close()
         with pytest.raises(Exception) as exception:
             output = hollow_world.execute("apis.supervisor.complete_task()")
@@ -614,6 +635,12 @@ class TestAppWorld:
         assert hollow_world.models is None
         assert hollow_world.shell is None
         remote_environment_url = "http://non-existent-server.com"
+
+        def connection_error(*args, **kwargs):
+            raise requests.exceptions.ConnectionError("Simulated unreachable environment server")
+
+        # Do not depend on public DNS or a local proxy to simulate an unreachable server.
+        monkeypatch.setattr("appworld.environment.requests.post", connection_error)
         with pytest.raises(Exception) as exception:
             with AppWorld(
                 task_id=self.held_out_task_ids[0],

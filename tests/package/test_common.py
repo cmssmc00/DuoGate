@@ -1131,6 +1131,18 @@ class TestCommon:
             assert _get_file_path_to_content(target_dir) == {
                 os.path.join("root", "dir1", "dir2", "apple.txt"): "apple"
             }
+            # Repository installation must preserve maintained public files.
+            apple_path = os.path.join("root", "dir1", "dir2", "apple.txt")
+            utils.write_file("local fix", os.path.join(target_dir, apple_path))
+            unpacked_paths = utils.unpack_bundle(
+                bundle_file_path=bundled_file_path,
+                base_directory=target_dir,
+                password=password,
+                salt=salt,
+                exclude_file_paths=[apple_path],
+            )
+            assert apple_path not in unpacked_paths
+            assert utils.read_file(os.path.join(target_dir, apple_path)) == "local fix"
             shutil.rmtree(target_dir)
             # Test 2: include_file_path_substrings (valid)
             utils.pack_bundle(

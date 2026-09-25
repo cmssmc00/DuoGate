@@ -13,10 +13,12 @@ compatibility with the upstream ACE-AppWorld implementation.
 
 ## Installation
 
-Use Python 3.11 and install both packages from this checkout. From the repository
-root:
+Use Python 3.11 and make sure Git LFS is installed. From the repository root,
+download the LFS assets and install both packages from this checkout:
 
 ```bash
+git lfs install
+git lfs pull
 python3.11 -m venv .venv
 source .venv/bin/activate
 python -m pip install -c constraints-appworld.txt -e . -e 'experiments[simplified]'
@@ -24,13 +26,20 @@ export APPWORLD_ROOT="$PWD"
 export APPWORLD_PROJECT_PATH="$PWD"
 python -m appworld.cli install --repo
 python -m appworld.cli download data
+python -m pip check
+python -m appworld.cli verify tests
 ```
+
+Before running the agent, confirm that `pip check` reports no broken requirements
+and both verification phases report `All tests passed.` When updating an existing
+environment, rerun the complete constrained installation command above so that
+its dependencies are resolved together.
 
 The encrypted `.bundle` files under `src/appworld/.source/` and
 `generate/.source/` are upstream installation assets required by
-`appworld install --repo`. They are not experiment outputs. A Git checkout that
-stores these files through Git LFS requires Git LFS and `git lfs pull` before
-installation. Downloaded data and unpacked protected files should remain local.
+`appworld install --repo`. These files are tracked with Git LFS and must be
+downloaded before unpacking. Downloaded data and unpacked protected files should
+remain local.
 
 ## API credentials
 

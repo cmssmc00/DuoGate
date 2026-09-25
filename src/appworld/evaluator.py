@@ -527,16 +527,15 @@ def evaluate_task(
     # NOTE: Do NOT reset models_start.to_db_home_path  and models_end_db_home_path_in_memory
     # from CachedDBHandler here as it can casue side effect in an yet open AppWorld.
 
-    report = None
     if save_report:
         evaluation_directory = os.path.join(output_directory, "tasks", task_id, "evaluation")
         os.makedirs(evaluation_directory, exist_ok=True)
         evaluation_file_path = os.path.join(evaluation_directory, "report.md")
-        report = test_tracker.report(print_it=False, colorize=False, save_file_path=evaluation_file_path)
+        test_tracker.report(print_it=False, colorize=False, save_file_path=evaluation_file_path)
         git_hash_file_path = os.path.join(evaluation_directory, "version.txt")
         write_file(appworld.__version__, git_hash_file_path)
 
-    return test_tracker, report
+    return test_tracker
 
 
 def evaluate_tasks(
@@ -564,7 +563,7 @@ def evaluate_tasks(
 
 
         
-        test_tracker, _ = evaluate_task(
+        test_tracker = evaluate_task(
             task_id=task_id,
             experiment_name=experiment_name,
             suppress_errors=suppress_errors,

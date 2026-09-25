@@ -1,4 +1,5 @@
 import os
+from glob import glob
 
 import appworld
 from appworld.common.constants import PASSWORD, SALT
@@ -36,11 +37,18 @@ def install_repo() -> None:
         f"  - in  : {base_directory}"
     )
     base_directory = "tests"
+    # Keep the public tests maintained in this checkout; refresh bundled app tests.
+    public_test_file_paths = [
+        os.path.relpath(file_path, base_directory)
+        for pattern in ("tests/*.py", "tests/package/*.py")
+        for file_path in glob(pattern)
+    ]
     unpack_bundle(
         bundle_file_path=tests_bundle_file_path,
         base_directory=base_directory,
         password=PASSWORD,
         salt=SALT,
+        exclude_file_paths=public_test_file_paths,
     )
     print(
         f"Unpacked package-tests source code \n"
