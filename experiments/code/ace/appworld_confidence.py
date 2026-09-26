@@ -2667,23 +2667,6 @@ _COLLECTION_POSITIVE_RES = (
     re.compile(r"\beach\b", re.IGNORECASE),
     re.compile(r"\bfor\s+each\b", re.IGNORECASE),
     re.compile(r"\beveryone\b", re.IGNORECASE),
-    re.compile(r"\ball\s+(?:incomplete|pending|requests?|messages?|invitations?|tasks?|notes?)\b", re.IGNORECASE),
-    re.compile(r"\beach\s+(?:person|task|request|message|invitation|note)\b", re.IGNORECASE),
-    # Domain-specific collection phrasings from observed regressions. These
-    # catch set tasks that do not literally say "all/every/each".
-    re.compile(r"\b(?:tasks?\s+assigned\s+to\s+me|incomplete\s+tasks?|reassign\b)", re.IGNORECASE),
-    re.compile(r"\bcomments?/discussion\b|\bwho\s+can\s+take\s+it\b", re.IGNORECASE),
-    re.compile(r"\b(?:some\s+)?splitwise\s+group\s+invitations?\b", re.IGNORECASE),
-    re.compile(r"\bphone\s+(?:voice|text\s+)?messages?\b|\bthose\s+messages\b", re.IGNORECASE),
-    re.compile(r"\b(?:number|phone)\s+is\s+in\s+my\s+phone\s+contact\s+book\b", re.IGNORECASE),
-    re.compile(r"\baccept\s+it\s+otherwise\s+delete\s+those\s+messages\b", re.IGNORECASE),
-    re.compile(r"\b(?:roommates?|friends?)\b.*\b(?:replied|suggested|suggestions?|changes?)\b", re.IGNORECASE),
-    re.compile(r"\bupdate\s+(?:the\s+)?playlist\s+accordingly\b", re.IGNORECASE),
-    re.compile(r"\b(?:add|remove)\s+song\s+suggestions?\b", re.IGNORECASE),
-    re.compile(r"\b(?:payment\s+requests?|pending\s+requests?|wrong\s+requests?)\b", re.IGNORECASE),
-    re.compile(r"\brequests?\s+from\s+(?:yesterday|today)\b", re.IGNORECASE),
-    re.compile(r"\bdelete\s+and\s+recreate\s+requests?\b", re.IGNORECASE),
-    re.compile(r"\b(?:monthly|habit)\s+logs?\b|\b(?:notes?|logs?|entries)\b.*\b(?:preserve|insert|export|list|count|date|month)\b", re.IGNORECASE),
 )
 
 _COLLECTION_NEGATIVE_RES = (
@@ -2720,35 +2703,17 @@ def _looks_like_collection_task(task_instruction: str) -> bool:
 
 
 def _collection_task_kind(task_instruction: str) -> str:
+    """Select an ID schema from app/entity names, never a task policy."""
     text = (task_instruction or "").lower()
-    if (
-        "todoist" in text
-        or "tasks assigned to me" in text
-        or "incomplete tasks" in text
-        or "reassign" in text
-    ) and any(x in text for x in ("incomplete", "assigned", "reassign", "task", "comments", "discussion", "take it")):
+    if re.search(r"\btodoist\b", text):
         return "todoist_tasks"
-    if (
-        "venmo" in text
-        or "payment request" in text
-        or "pending request" in text
-        or "wrong request" in text
-    ) and any(x in text for x in ("request", "pending", "wrong", "yesterday", "today", "delete and recreate")):
+    if re.search(r"\bvenmo\b", text):
         return "venmo_requests"
-    if (
-        ("splitwise" in text or "group invitation" in text)
-        and any(x in text for x in ("phone", "message", "invitation", "contact", "contact book"))
-    ):
+    if re.search(r"\binvitations?\b", text):
         return "phone_splitwise_invitations"
-    if (
-        ("spotify" in text or "playlist" in text)
-        and any(x in text for x in ("playlist", "song", "roommate", "friend", "suggestion", "suggested", "message", "replied"))
-    ):
+    if re.search(r"\b(?:spotify|playlists?)\b", text):
         return "spotify_playlist_messages"
-    if (
-        ("simplenote" in text or "note" in text or "log" in text)
-        and any(x in text for x in ("note", "log", "entry", "entries", "export", "monthly", "habit", "date", "month", "preserve", "insert"))
-    ):
+    if re.search(r"\b(?:simplenote|simple[ _]note)\b", text):
         return "simplenote_notes"
     return "generic"
 
@@ -2768,12 +2733,6 @@ _SET_CONTEXTUAL_ID_MARKERS: dict[str, tuple[str, ...]] = {
 _SET_KEY_VALUE_RE = re.compile(
     r"['\"]?(?P<key>[A-Za-z_][A-Za-z0-9_]*)['\"]?\s*[:=]\s*"
     r"['\"](?P<value>[A-Za-z0-9_\-:.]+)['\"]",
-    re.IGNORECASE,
-)
-_SET_TABLE_ROW_RE = re.compile(
-    r"(?P<id>[A-Za-z0-9][A-Za-z0-9_\-:.]{3,})[^\n]{0,180}?"
-    r"(?:planned_action|action|should)\s*[:=]\s*['\"]?"
-    r"(?P<action>update|delete|accept|reject|create|add|remove|skip|unknown)",
     re.IGNORECASE,
 )
 _DYNAMIC_MARKERS = ("<dynamic>", "_dynamic", " for ", " while ", "lambda ", "next(")
@@ -2797,7 +2756,7 @@ def _extract_kind_id_matches(kind: str, text: str) -> list[tuple[str, int, str]]
             value = m.group("value") or ""
             if not value:
                 continue
-            if key in allowed:
+            if key in allowed or key == "candidate_id":
                 out.append((value, m.start(), key))
                 continue
             if key == "id" and kind in ("todoist_tasks", "simplenote_notes"):
@@ -2866,33 +2825,49 @@ def _normalize_set_action(action: str) -> str:
     return "unknown"
 
 
-def _task_default_action(kind: str, task_instruction: str) -> str:
+def _explicit_task_set_action(task_instruction: str) -> str:
+    """Recognize a single unconditional request; ambiguous requests stay unknown."""
     text = (task_instruction or "").lower()
-    if kind == "todoist_tasks":
-        return "update"
-    if kind == "venmo_requests":
-        if any(x in text for x in ("delete", "cancel", "remove")):
-            return "delete"
-        if any(x in text for x in ("approve", "accept")):
-            return "accept"
-        if any(x in text for x in ("deny", "reject")):
-            return "reject"
-        return "update"
-    if kind == "phone_splitwise_invitations":
-        if any(x in text for x in ("delete", "remove")):
-            return "delete"
-        if any(x in text for x in ("accept", "approve")):
-            return "accept"
-        if any(x in text for x in ("reject", "deny")):
-            return "reject"
-    if kind == "spotify_playlist_messages":
-        if "remove" in text:
-            return "remove"
-        if "add" in text:
-            return "add"
-    if kind == "simplenote_notes":
-        return "update"
-    return "unknown"
+    verbs = (
+        r"delete|remove|cancel|accept|approve|reject|deny|add|insert|"
+        r"update|reassign|edit|modify|append|write|create|make|skip"
+    )
+    if not re.match(rf"\s*(?:please\s+)?(?:{verbs})\b", text):
+        return "unknown"
+    if re.search(r"\b(?:if|unless|except|otherwise|only|not|never|don't|but)\b", text):
+        return "unknown"
+    actions = {_normalize_set_action(verb) for verb in re.findall(rf"\b({verbs})\b", text)}
+    return next(iter(actions)) if len(actions) == 1 else "unknown"
+
+
+def _set_evidence_rows(text: str) -> list[str]:
+    """Keep eligibility/action fields local to one observed record or text row."""
+    rows = re.findall(r"\{[^{}]*\}", text, flags=re.DOTALL)
+    rows.extend(line for line in text.splitlines() if "{" not in line and "}" not in line)
+    return rows
+
+
+def _set_evidence_field(row: str, names: str) -> str | None:
+    match = re.search(
+        rf"(?<!\w)['\"]?(?:{names})['\"]?\s*[:=]\s*"
+        r"(?:'([^']*)'|\"([^\"]*)\"|([A-Za-z0-9_]+))",
+        row,
+        flags=re.IGNORECASE,
+    )
+    if match:
+        return next(value for value in match.groups() if value is not None).strip().lower()
+    return None
+
+
+def _set_row_is_ineligible(row: str) -> bool:
+    action = _set_evidence_field(row, "expected_action|planned_action|action|should")
+    skip_reason = _set_evidence_field(row, "skip_reason")
+    return (
+        _set_evidence_field(row, "eligible|required") in ("false", "0")
+        or _set_evidence_field(row, "ineligible") in ("true", "1")
+        or action == "skip"
+        or skip_reason not in (None, "", "none", "null")
+    )
 
 
 def _extract_recent_expected_set(
@@ -2900,7 +2875,7 @@ def _extract_recent_expected_set(
     recent_messages_or_text: Any,
     task_instruction: str = "",
 ) -> dict[str, str]:
-    """Extract only explicit eligible IDs / actions from recent evidence."""
+    """Use explicit candidate evidence, without inferring policy from app/status."""
     text = (
         recent_messages_or_text
         if isinstance(recent_messages_or_text, str)
@@ -2908,85 +2883,23 @@ def _extract_recent_expected_set(
     )
     if not isinstance(text, str) or not text.strip():
         return {}
-    default_action = _task_default_action(kind, task_instruction)
+    task_action = _explicit_task_set_action(task_instruction)
     out: dict[str, str] = {}
 
     try:
-        # Prefer explicit candidate-table rows when the agent printed one.
-        for m in _SET_TABLE_ROW_RE.finditer(text):
-            item_id = m.group("id")
-            action = _normalize_set_action(m.group("action"))
-            if item_id and action and action != "skip":
-                out.setdefault(item_id, action)
-
-        for item_id, start, key in _extract_kind_id_matches(kind, text):
-            if not item_id:
+        for row in _set_evidence_rows(text):
+            if _set_row_is_ineligible(row):
                 continue
-            win = _window(text, start).lower()
-            action = default_action
-            eligible = False
-            if kind == "todoist_tasks":
-                eligible = (
-                    any(x in win for x in (
-                        "incomplete", "not completed", "status': 'open",
-                        "status':'open", '"status": "open', '"status":"open',
-                    ))
-                    and not any(x in win for x in (
-                        "completed_at': '", '"completed_at": "',
-                        "is_completed': true", '"is_completed": true',
-                        "is_completed:true", '"is_completed":true',
-                    ))
-                )
-            elif kind == "venmo_requests":
-                eligible = "pending" in win and any(x in win for x in ("request", "payment_request", "payment request"))
-            elif kind == "phone_splitwise_invitations":
-                contact_false = any(x in win for x in (
-                    "in_contacts: false", "in_contacts=False", '"in_contacts": false',
-                    '"in_contacts":false', "contact_match: false", "contact_match=False",
-                    '"contact_match": false', '"contact_match":false',
-                    "sender_in_contacts: false", "sender_in_contacts=False",
-                    '"sender_in_contacts": false', '"sender_in_contacts":false',
-                    "not in contacts", "not in contact book",
-                    "no exact contact", "no exact phone match",
-                    "exact_phone_match: false", "exact_phone_match=False",
-                    '"exact_phone_match": false', '"exact_phone_match":false',
-                ))
-                contact_true = (
-                    not contact_false
-                    and any(x in win for x in (
-                        "in_contacts: true", "in_contacts=True", '"in_contacts": true',
-                        '"in_contacts":true', "contact_match: true", "contact_match=True",
-                        '"contact_match": true', '"contact_match":true',
-                        "sender_in_contacts: true", "sender_in_contacts=True",
-                        '"sender_in_contacts": true', '"sender_in_contacts":true',
-                        "exact contact", "in contact book",
-                        "exact_phone_match: true", "exact_phone_match=True",
-                        '"exact_phone_match": true', '"exact_phone_match":true',
-                    ))
-                    and "fuzzy" not in win
-                )
-                if contact_false:
-                    eligible = True
-                    action = "delete"
-                elif contact_true:
-                    eligible = True
-                    action = "accept"
-                else:
-                    eligible = False
-                    action = "unknown"
-            elif kind == "spotify_playlist_messages":
-                eligible = any(x in win for x in ("add", "remove", "suggest", "roommate", "song"))
-                if "remove" in win:
-                    action = "remove"
-                elif "add" in win:
-                    action = "add"
-            elif kind == "simplenote_notes":
-                eligible = any(x in win for x in ("note", "log", "monthly", "habit", "dated", "date"))
-                action = "update"
-            else:
-                eligible = any(x in win for x in ("eligible", "candidate", "required", "pending", "incomplete"))
-
-            if eligible:
+            explicit_action = _set_evidence_field(row, "expected_action|planned_action|action|should")
+            eligible = _set_evidence_field(row, "eligible|required|candidate") in ("true", "1")
+            if not eligible and explicit_action is None:
+                continue
+            # A clear current instruction outranks an agent-written candidate
+            # action. Conditional/multi-action requests need per-item evidence.
+            action = task_action
+            if action == "unknown" and explicit_action is not None:
+                action = _normalize_set_action(explicit_action)
+            for item_id, _, _ in _extract_kind_id_matches(kind, row):
                 out.setdefault(item_id, action)
     except Exception:
         return out
@@ -2998,7 +2911,7 @@ def _extract_explicit_ineligible_set(
     recent_messages_or_text: Any,
     task_instruction: str = "",
 ) -> dict[str, str]:
-    """Return IDs with explicit evidence that only a skip/safe action is valid."""
+    """Return explicitly excluded IDs; contact membership is not authorization."""
     text = (
         recent_messages_or_text
         if isinstance(recent_messages_or_text, str)
@@ -3008,23 +2921,10 @@ def _extract_explicit_ineligible_set(
     if not isinstance(text, str) or not text.strip():
         return out
     try:
-        for item_id, start, key in _extract_kind_id_matches(kind, text):
-            win = _window(text, start).lower()
-            if kind == "phone_splitwise_invitations":
-                if any(x in win for x in (
-                    "in_contacts: false", "in_contacts=False", '"in_contacts": false',
-                    '"in_contacts":false', "contact_match: false", "contact_match=False",
-                    '"contact_match": false', '"contact_match":false',
-                    "sender_in_contacts: false", "sender_in_contacts=False",
-                    '"sender_in_contacts": false', '"sender_in_contacts":false',
-                    "not in contacts", "not in contact book",
-                    "no exact contact", "no exact phone match",
-                    "exact_phone_match: false", "exact_phone_match=False",
-                    '"exact_phone_match": false', '"exact_phone_match":false',
-                )):
-                    out.setdefault(item_id, "delete")
-            elif any(x in win for x in ("ineligible", "not eligible", "skip_reason", "should skip")):
-                out.setdefault(item_id, "skip")
+        for row in _set_evidence_rows(text):
+            if _set_row_is_ineligible(row):
+                for item_id, _, _ in _extract_kind_id_matches(kind, row):
+                    out.setdefault(item_id, "skip")
     except Exception:
         return out
     return out
@@ -3181,7 +3081,7 @@ def _evaluate_set_level_gate(
         )
 
         # No explicit observed set: log only. Dynamic loops are not a failure.
-        if not expected:
+        if not expected and not explicit_ineligible_map:
             result.mismatch_type = "uncertain"
             result.reason = "collection task detected, but no explicit expected ID/action set was extractable"
             return result

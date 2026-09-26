@@ -25,8 +25,6 @@ print(apis.api_docs.show_api_doc(app_name='spotify', api_name='login'))
 
 Each code execution will produce an output that you can use in subsequent calls. Using these APIs, you can now generate code, that I will execute, to solve the task. 
 
-Only for tasks that explicitly require a set of items, such as all/every/each/for each/everyone, build a compact candidate table before batch mutations or final completion. Include candidate_id, evidence, planned_action, and skip_reason. Do not apply this rule to single-item, latest, first, most recent, or any-item tasks. If the candidate set is uncertain, perform one additional read-only search/list/show query rather than guessing. The goal is to avoid missing required items, touching extra ineligible items, or applying the wrong action.
-
 You are also provided with a curated playbook of strategies, API-specific information, common mistakes, and proven solutions to help you solve the task effectively.
 
 **Playbook**: - Read the **Playbook** first, then execute the task by explicitly leveraging each relevant section:
@@ -963,57 +961,6 @@ USER:
 (7) Many APIs return items in "pages". Make sure to run through all the pages by looping over `page_index`.
 
 (8) Once you have completed the task, make sure to call apis.supervisor.complete_task(). If the task asked for some information, return it as the answer argument, i.e. call apis.supervisor.complete_task(answer=<answer>). Many tasks do not require an answer, so in those cases, just call apis.supervisor.complete_task() i.e. do not pass any argument.
-
-(9) Before a high-risk `Code:` block, assess your confidence using evidence, not intuition.
-
-High-risk steps include:
-- bulk or multi-item state changes
-- irreversible actions
-- multi-app joins or identity disambiguation
-- relative-date / time-anchored reasoning
-- final completion after external state changes
-
-For small read-only queries or direct follow-up actions based on already verified evidence, do not add a confidence block; proceed directly.
-
-Use this exact format immediately before every `Code:` block:
-
-Confidence level: LOW / MEDIUM / HIGH
-Confidence basis:
-- <verified fact 1>
-- <verified fact 2>
-Missing evidence:
-- <missing item 1>
-- <missing item 2>
-Next action type: QUERY_ONLY / SAFE_ACTION / COMPLETE_TASK
-
-Definitions:
-- LOW: key assumptions are still unverified.
-- MEDIUM: the general direction is clear, but some important details are still unverified.
-- HIGH: the next step is supported by verified evidence relevant to that step.
-
-Rules:
-- LOW: query only.
-- MEDIUM: do one targeted query to resolve the specific missing evidence, then act.
-- HIGH: act only when the evidence needed for this step is verified.
-- Do not broaden the search once the decision-critical evidence for the current step is already verified.
-
-Execution discipline:
-- After a successful state-changing action, do not repeat the same or equivalent mutation unless a read-only check shows that it did not take effect, or the task explicitly requires another distinct mutation.
-- Once the required final state has been verified, finish promptly.
-- For state-change tasks, call apis.supervisor.complete_task() without an answer unless the task explicitly asks you to return information (e.g. a name, number, date, text, or list).
-- Do not use answer=... merely because some text was sent to another app or entity.
-- NEVER pass `answer='completed'`, `answer='success'`, `answer='done'`, `answer='Action completed successfully'`, a URL, an id, or a descriptive summary as the answer for a state-change task. AppWorld grades action-only tasks against `ground_truth_answer = null`; any non-null answer causes the task to fail. The correct terminal call is `apis.supervisor.complete_task()` with no arguments.
-- If the confidence gate blocks `complete_task()`, do NOT work around it by adding an `answer=` argument. Instead add the missing read-only verification (e.g. re-check the target state with a `show_/get_/search_` call) and then call `apis.supervisor.complete_task()` again.
-
-Important anti-overconfidence reminders:
-- Never assume pagination is complete unless you have checked termination properly.
-- Never assume target coverage is complete unless all relevant items / people / pages have been checked.
-- Never assume directionality is correct without verification (e.g. sent vs received, from vs to, requester vs recipient).
-- Never assume a parse succeeded if the observed output contradicts it.
-
-
-
-
 
 USER:
 Using these APIs and playbook, generate code to solve the actual task:

@@ -233,8 +233,9 @@ the working playbook, it writes to
 
 The initial playbook always comes from
 `experiments/playbooks/appworld_initial_playbook.txt`, which contains exactly the
-eight original ACE entries. Learning can update the working playbook between
-tasks within the same run. For another independent run, copy the configuration
+eight original ACE entries. Retrieval selects only existing playbook content;
+it does not prepend an additional static rule summary. Learning can update the
+working playbook between tasks within the same run. For another independent run, copy the configuration
 under a new name, change both its trained-playbook and controller-log paths, and
 use a fresh `APPWORLD_CACHE`. Do not reuse an existing output directory. Run tasks
 serially when evaluating this sequential online-learning configuration.
@@ -283,7 +284,19 @@ You do not need to repeat the initial data download every time you open a termin
 The source defaults select updates for failures or recognized risk, skip clean
 successes, admit at most two new entries per update, and apply 800-character
 per-entry and 1,600-character per-update limits. The retrieved playbook view has
-a 60,000-character target; prefixed critical guidance can exceed that target.
+a 60,000-character target.
+
+The Generator retains the interface instructions, demonstrations, and eight
+original key instructions. It does not require a candidate table or an extra
+confidence/execution-policy block. Confidence assessment and recovery remain in
+the runtime controller.
+
+Collection checks use explicit candidate eligibility/action evidence and
+unambiguous current task instructions. App/entity names select identifier fields,
+not default operations. Contact membership, pending/open status, and note metadata
+alone do not determine eligibility or an operation; unresolved sets/actions remain
+unknown. The payment-direction checks, collection mismatch checks, and context
+admission checks are retained.
 
 ## Attribution and licensing
 

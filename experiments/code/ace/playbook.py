@@ -4,21 +4,6 @@ import re
 from .utils import get_section_slug
 
 
-CRITICAL_RULES_SUMMARY = """## CRITICAL RULES ALWAYS INCLUDED
-- Preserve complete_task(answer=...) for true answer/question tasks; do not strip required non-empty answers.
-- For completed action-only tasks with successful action evidence, bare complete_task() is the safe terminal fast path.
-- For all/every/each/collection tasks, verify the full expected set before mutating or completing; missing, extra, wrong-action, or mixed set evidence needs recovery.
-- Ground mutations in read-only evidence: exact IDs, exact counterparties, amounts, statuses, request ids, funding/balance evidence, and successful mutation output.
-- Use pagination, full-list, and broad-search coverage when tasks ask for complete sets or latest records.
-- Venmo direction is semantic API choice: pay money you owe, request money owed to you; do not require literal "pay/request" wording.
-- Venmo safety checks require exact counterparty, exact amount, request id/status, transaction/request direction, and funding/balance evidence when relevant.
-- SimpleNote updates must preserve metadata and existing content structure unless the task explicitly asks to change them; paginate/search fully.
-- Splitwise debt direction matters: confirm who owes whom before paying, settling, requesting, or recording.
-- Phone/SMS tasks require exact phone/contact matching and the latest relevant reply when multiple messages exist.
-- Delete/update/send/create mutations are high risk: verify the target, intent, and post-action evidence before complete_task.
-"""
-
-
 APP_KEYWORDS = {
     "venmo": ("venmo", "payment", "pay", "paid", "request", "charge", "transaction", "balance", "funding", "counterparty"),
     "splitwise": ("splitwise", "debt", "owed", "owes", "expense", "settle", "group", "split"),
@@ -234,7 +219,7 @@ def select_playbook_for_task(
     min_chars: int = 12000,
     max_bullets: int = 80,
 ) -> tuple[str, dict]:
-    """Select a compact task-relevant playbook view while preserving source text."""
+    """Select existing task-relevant guidance without adding static instructions."""
     full_playbook = full_playbook or ""
     max_chars = max(2000, int(max_chars or 60000))
     min_chars = max(0, int(min_chars or 12000))
@@ -242,7 +227,7 @@ def select_playbook_for_task(
     detected_apps = detect_task_apps(task_instruction)
 
     if len(full_playbook) <= max_chars:
-        selected = (CRITICAL_RULES_SUMMARY.rstrip() + "\n\n" + full_playbook.strip()).strip()
+        selected = full_playbook
         metadata = {
             "full_playbook_chars": len(full_playbook),
             "selected_playbook_chars": len(selected),
@@ -250,14 +235,14 @@ def select_playbook_for_task(
             "detected_apps": detected_apps,
             "selected_section_count": len([l for l in selected.splitlines() if l.strip().startswith("##")]),
             "selected_bullet_count": len([l for l in selected.splitlines() if parse_playbook_line(l)]),
-            "always_included_count": len([l for l in CRITICAL_RULES_SUMMARY.splitlines() if l.strip().startswith("-")]),
+            "always_included_count": 0,
             "retrieval_mode": "full_under_budget",
         }
         return selected, metadata
 
     task_terms = set(re.findall(r"[a-z0-9_]+", (task_instruction or "").lower()))
     entries = _split_playbook_entries(full_playbook)
-    selected_lines = [CRITICAL_RULES_SUMMARY.rstrip(), ""]
+    selected_lines = []
     selected_sections = set()
     selected_bullets = 0
     seen_norm = set()
@@ -346,7 +331,7 @@ def select_playbook_for_task(
         "detected_apps": detected_apps,
         "selected_section_count": len(selected_sections),
         "selected_bullet_count": selected_bullets,
-        "always_included_count": len([l for l in CRITICAL_RULES_SUMMARY.splitlines() if l.strip().startswith("-")]),
+        "always_included_count": 0,
         "retrieval_mode": "keyword_selection",
         "max_chars": max_chars,
         "min_chars": min_chars,
