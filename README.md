@@ -42,30 +42,27 @@ The last command should report Python 3.11.x. If a command is not found, install
 that tool before continuing. The supplied configuration calls a remote model API;
 you do not need to download model weights or have a local GPU for this workflow.
 
-### 2. Download the repository
+### 2. Download the anonymous source archive
 
-Open a terminal in the directory where you want to keep the project, then run:
+Open the anonymous repository linked in the paper and click **Full repo ZIP**
+in the upper-right corner.
+
+The following example assumes that `DuoGate-56CF.zip` was downloaded to
+`~/Downloads`. Adjust the download directory if needed, and extract into
+a new directory:
 
 ```bash
-git lfs install
-git clone https://github.com/cmssmc00/DuoGate.git
-cd DuoGate
-git lfs pull
+cd ~/Downloads
+unzip DuoGate-56CF.zip -d DuoGate-anonymous
+cd DuoGate-anonymous
 ```
 
-You are now in the **repository root**: the directory containing `README.md`,
-`pyproject.toml`, `src/`, and `experiments/`. Run all remaining commands from this
-directory unless instructed otherwise.
+You should now see `README.md`, `pyproject.toml`, `src/`, and `experiments/`.
+Run all remaining commands from this project root.
 
-Use this Git checkout workflow for the instructions below. A downloaded source
-ZIP is not a Git checkout, so `git lfs pull` cannot be run in an extracted ZIP.
-
-The encrypted `.bundle` files under `src/appworld/.source/` and
-`generate/.source/` are upstream installation assets required by
-`appworld install --repo`. These files are tracked with Git LFS: download the
-actual assets before unpacking, rather than leaving only the small LFS pointer
-files in the checkout. Downloaded data and unpacked protected files should
-remain local.
+This archive-based installation does not require Git or Git LFS.
+Continue with Step 3 to create the Python environment and install both
+local packages.
 
 ### 3. Install both Python packages
 
